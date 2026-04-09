@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: jsapp
+            path: jsapp/envs/dev
+            namespace: jsapp
+
+  template:
+    metadata:
+      name: 'apps-{{name}}'
+      labels:
+        team: apps
+        component: '{{name}}'
+        environment: dev
+
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/org/gitops-apps
+        targetRevision: main
+        path: '{{path}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

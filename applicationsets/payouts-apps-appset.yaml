@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: payouts-apps
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: pyapp
+            path: apps/pyapp/envs/dev
+            namespace: payouts
+
+  template:
+    metadata:
+      name: 'payouts-{{name}}'
+      labels:
+        team: payouts
+        component: '{{name}}'
+        environment: dev
+      annotations:
+        # ArgoCD Image Updater — watches ECR for new tags matching the regex
+        # and writes the updated image tag back to Git automatically.
+        argocd-image-updater.argoproj.io/image-list: pyapp=ACCOUNT_ID.dkr.ecr.eu-central-1.amazonaws.com/pyapp
+        argocd-image-updater.argoproj.io/pyapp.update-strategy: newest-build
+        argocd-image-updater.argoproj.io/pyapp.allow-tags: regexp:^[a-f0-9]{7}-prod$
+        argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/github-creds
+        argocd-image-updater.argoproj.io/git-branch: main
+
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/org/gitops-payouts
+        targetRevision: main
+        path: '{{path}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

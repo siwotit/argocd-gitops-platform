@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  # Ignore ValidatingWebhookConfiguration failurePolicy drift —
+  # controllers update this field at runtime, causing constant OutOfSync noise.
+  resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+    jqPathExpressions:
+    - '.webhooks[]?.failurePolicy'

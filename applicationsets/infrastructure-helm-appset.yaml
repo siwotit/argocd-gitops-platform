@@ -1,0 +1,122 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: infrastructure-helm
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: istio-base
+            chart: base
+            repo: https://istio-release.storage.googleapis.com/charts
+            version: 1.28.3
+            namespace: istio-system
+            baseValues: istio/base/values.yaml
+            overlayValues: istio/base/overlays/dev/values.yaml
+          - name: istio-istiod
+            chart: istiod
+            repo: https://istio-release.storage.googleapis.com/charts
+            version: 1.28.3
+            namespace: istio-system
+            baseValues: istio/istiod/values.yaml
+            overlayValues: istio/istiod/overlays/dev/values.yaml
+          - name: aws-load-balancer-controller
+            chart: aws-load-balancer-controller
+            repo: https://aws.github.io/eks-charts
+            version: 3.0.0
+            namespace: kube-system
+            baseValues: aws-load-balancer-controller/values.yaml
+            overlayValues: aws-load-balancer-controller/overlays/dev/values.yaml
+          - name: external-dns
+            chart: external-dns
+            repo: https://kubernetes-sigs.github.io/external-dns
+            version: 1.20.0
+            namespace: external-dns
+            baseValues: external-dns/values.yaml
+            overlayValues: external-dns/overlays/dev/values.yaml
+          - name: cert-manager
+            chart: cert-manager
+            repo: https://charts.jetstack.io
+            version: v1.19.2
+            namespace: cert-manager
+            baseValues: cert-manager/values.yaml
+            overlayValues: cert-manager/overlays/dev/values.yaml
+          - name: karpenter
+            chart: karpenter
+            repo: oci://public.ecr.aws/karpenter/karpenter
+            version: 1.8.6
+            namespace: karpenter
+            baseValues: karpenter/values.yaml
+            overlayValues: karpenter/overlays/dev/values.yaml
+          - name: kube-prometheus-stack
+            chart: kube-prometheus-stack
+            repo: https://prometheus-community.github.io/helm-charts
+            version: 81.4.1
+            namespace: monitoring
+            baseValues: kube-prometheus-stack/values.yaml
+            overlayValues: kube-prometheus-stack/overlays/dev/values.yaml
+          - name: keda
+            chart: keda
+            repo: https://kedacore.github.io/charts
+            version: 2.19.0
+            namespace: keda
+            baseValues: keda/values.yaml
+            overlayValues: keda/overlays/dev/values.yaml
+          - name: argo-rollouts
+            chart: argo-rollouts
+            repo: https://argoproj.github.io/argo-helm
+            version: 2.40.6
+            namespace: argo-rollouts
+            baseValues: argo-rollouts/values.yaml
+            overlayValues: argo-rollouts/overlays/dev/values.yaml
+          - name: argocd-image-updater
+            chart: argocd-image-updater
+            repo: https://argoproj.github.io/argo-helm
+            version: 1.1.1
+            namespace: argocd
+            baseValues: argocd-image-updater/values.yaml
+            overlayValues: argocd-image-updater/overlays/dev/values.yaml
+
+  template:
+    metadata:
+      name: '{{name}}'
+      labels:
+        team: infrastructure
+        component: '{{name}}'
+
+    spec:
+      project: default
+
+      # Multi-source: upstream Helm chart + values from gitops-infra repo.
+      # Keeps chart versions and configuration independently versioned.
+      sources:
+        - repoURL: '{{repo}}'
+          chart: '{{chart}}'
+          targetRevision: '{{version}}'
+          helm:
+            skipSchemaValidation: true
+            valueFiles:
+              - $values/{{baseValues}}
+              - $values/{{overlayValues}}
+        - repoURL: https://github.com/org/gitops-infra
+          targetRevision: main
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      ignoreDifferences:
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          jsonPointers:
+            - /spec/preserveUnknownFields
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - Replace=true

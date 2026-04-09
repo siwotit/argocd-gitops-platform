@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: infrastructure-manifests
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: istio-resources
+            path: istio/resources/overlays/dev
+            namespace: networking
+          - name: karpenter-resources
+            path: karpenter/resources/overlays/dev
+            namespace: karpenter
+          - name: cert-manager-resources
+            path: cert-manager/resources/overlays/dev
+            namespace: cert-manager
+          - name: monitoring-resources
+            path: kube-prometheus-stack/resources/overlays/dev
+            namespace: monitoring
+          - name: argocd-image-updater-resources
+            path: argocd-image-updater/resources
+            namespace: argocd
+          - name: argocd-rollouts-resources
+            path: argo-rollouts/resources
+            namespace: argo-rollouts
+          - name: keda-resources
+            path: keda/resources
+            namespace: keda
+
+  template:
+    metadata:
+      name: '{{name}}'
+      labels:
+        team: infrastructure
+        component: '{{name}}'
+
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/org/gitops-infra
+        targetRevision: main
+        path: '{{path}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
